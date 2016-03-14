@@ -133,8 +133,11 @@ static int masq_inet_event(struct notifier_block *this,
 			   unsigned long event,
 			   void *ptr)
 {
-	struct net_device *dev = ((struct in_ifaddr *)ptr)->ifa_dev->dev;
-	return masq_device_event(this, event, dev);
+	struct in_device *idev = ((struct in_ifaddr *)ptr)->ifa_dev;
+	if (idev->dead)
+		return NOTIFY_DONE;
+
+	return masq_device_event(this, event, idev->dev);
 }
 
 static struct notifier_block masq_dev_notifier = {
