@@ -28,9 +28,9 @@ void msm_dts_srs_tm_init(int port_id, int copp_idx);
 void msm_dts_srs_tm_deinit(int port_id);
 void msm_dts_srs_tm_add_controls(struct snd_soc_platform *platform);
 #else
-void msm_dts_srs_tm_init(int port_id, int copp_idx) { }
-void msm_dts_srs_tm_deinit(int port_id) { }
-void msm_dts_srs_tm_add_controls(struct snd_soc_platform *platform) { }
+static inline void msm_dts_srs_tm_init(int port_id, int copp_idx) { }
+static inline void msm_dts_srs_tm_deinit(int port_id) { }
+static inline void msm_dts_srs_tm_add_controls(struct snd_soc_platform *platform) { }
 
 #endif
 
