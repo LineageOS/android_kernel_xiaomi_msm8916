@@ -434,6 +434,7 @@ static int ltr559_ps_enable(struct i2c_client *client, int on)
 	struct ltr559_data *data = i2c_get_clientdata(client);
 	int ret = 0;
 	int contr_data;
+	ktime_t	timestamp;
 
 	if (on) {
 		#if defined(DYNAMIC_CALIBRATE)
@@ -492,8 +493,13 @@ static int ltr559_ps_enable(struct i2c_client *client, int on)
 			return -EFAULT;
 		}
 
+		timestamp = ktime_get_boottime();
 		data->ps_state = 0xff;
 		input_report_abs(data->input_dev_ps, ABS_DISTANCE, data->ps_state);
+		input_event(data->input_dev_ps, EV_SYN, SYN_TIME_SEC,
+				ktime_to_timespec(timestamp).tv_sec);
+		input_event(data->input_dev_ps, EV_SYN, SYN_TIME_NSEC,
+				ktime_to_timespec(timestamp).tv_nsec);
 		input_sync(data->input_dev_ps);
 
 	}
@@ -590,6 +596,7 @@ static void ltr559_ps_work_func(struct work_struct *work)
 	int als_ps_status;
 	int psval_lo, psval_hi, psdata;
 	int i = 0;
+	ktime_t	timestamp;
 
 #ifdef DEBUG
 	static int cnt;
@@ -600,6 +607,7 @@ static void ltr559_ps_work_func(struct work_struct *work)
 	wing_info("ltr559_ps_work_func cnt = %d.\n", cnt++);
 #endif
 
+	timestamp = ktime_get_boottime();
 	als_ps_status = ltr559_sensor_I2C_Read(client, LTR559_ALS_PS_STATUS);
 	printk("%s ps_open_state=%d, als_ps_status=0x%x\n", __func__, data->ps_open_state, als_ps_status);
 	if (als_ps_status < 0)
@@ -704,6 +712,10 @@ static void ltr559_ps_work_func(struct work_struct *work)
 		if (ps_state_last != data->ps_state) {
 			printk("%s, %d, %d\n", __func__, data->platform_data->prox_threshold, data->platform_data->prox_hsyteresis_threshold);
 			input_report_abs(data->input_dev_ps, ABS_DISTANCE, data->ps_state);
+			input_event(data->input_dev_ps, EV_SYN, SYN_TIME_SEC,
+					ktime_to_timespec(timestamp).tv_sec);
+			input_event(data->input_dev_ps, EV_SYN, SYN_TIME_NSEC,
+					ktime_to_timespec(timestamp).tv_nsec);
 			input_sync(data->input_dev_ps);
 			printk("%s, report ABS_DISTANCE=%s\n", __func__, data->ps_state ? "far" : "near");
 
@@ -731,7 +743,7 @@ static void ltr559_als_work_func(struct work_struct *work)
 #ifdef DEBUG
 	wing_info("ltr559_als_work_func cnt = %d.\n", cnt++);
 #endif
-	timestamp = ktime_get();
+	timestamp = ktime_get_boottime();
 	if (!data->als_open_state)
 		goto workout;
 
