@@ -410,7 +410,7 @@ static int ltr559_chip_reset(struct i2c_client *client)
 	return ret;
 }
 
-static u32 ps_state_last = 0xff;
+static u32 ps_state_last = 1;
 
 
 static void ltr559_set_ps_threshold(struct i2c_client *client, u8 addr, u16 value)
@@ -435,6 +435,7 @@ static int ltr559_ps_enable(struct i2c_client *client, int on)
 	int ret = 0;
 	int contr_data;
 	ktime_t	timestamp;
+	timestamp = ktime_get_boottime();
 
 	if (on) {
 		#if defined(DYNAMIC_CALIBRATE)
@@ -459,8 +460,7 @@ static int ltr559_ps_enable(struct i2c_client *client, int on)
 			return -EFAULT;
 		}
 
-		data->ps_state = 0xff;
-		ps_state_last = 0xff;
+		data->ps_state = 1;
 
 		#if defined(DYNAMIC_CALIBRATE)
 		ltr559_set_ps_threshold(data->client, LTR559_PS_THRES_LOW_0, data->platform_data->prox_hsyteresis_threshold);
@@ -472,6 +472,12 @@ static int ltr559_ps_enable(struct i2c_client *client, int on)
 
 		wake_lock(&data->ps_wakelock);
 
+		input_report_abs(data->input_dev_ps, ABS_DISTANCE, data->ps_state);
+		input_event(data->input_dev_ps, EV_SYN, SYN_TIME_SEC,
+				ktime_to_timespec(timestamp).tv_sec);
+		input_event(data->input_dev_ps, EV_SYN, SYN_TIME_NSEC,
+				ktime_to_timespec(timestamp).tv_nsec);
+		input_sync(data->input_dev_ps);
 
 	} else {
 
@@ -492,16 +498,6 @@ static int ltr559_ps_enable(struct i2c_client *client, int on)
 			pr_err("%s:  enable=(%d) failed!\n", __func__, on);
 			return -EFAULT;
 		}
-
-		timestamp = ktime_get_boottime();
-		data->ps_state = 0xff;
-		input_report_abs(data->input_dev_ps, ABS_DISTANCE, data->ps_state);
-		input_event(data->input_dev_ps, EV_SYN, SYN_TIME_SEC,
-				ktime_to_timespec(timestamp).tv_sec);
-		input_event(data->input_dev_ps, EV_SYN, SYN_TIME_NSEC,
-				ktime_to_timespec(timestamp).tv_nsec);
-		input_sync(data->input_dev_ps);
-
 	}
 	pr_err("%s: enable=(%d) OK\n", __func__, on);
 	return ret;
@@ -722,6 +718,10 @@ static void ltr559_ps_work_func(struct work_struct *work)
 			ps_state_last = data->ps_state;
 		} else
 			printk("%s, ps_state still %s\n", __func__, data->ps_state ? "far" : "near");
+	} else if ((data->ps_open_state == 0) && (als_ps_status & 0x03)) {
+		/* If the interrupt fires while we're still not open, the sensor is covered */
+		data->ps_state = 0;
+		ps_state_last = data->ps_state;
 	}
 workout:
 	enable_irq(data->irq);
