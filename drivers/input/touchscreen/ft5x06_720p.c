@@ -104,7 +104,11 @@ static u8 pre_charger_status;
 #endif
 
 
+static ssize_t ft5x06_ts_disable_keys_show(struct device *dev,
+	struct device_attribute *attr, char *buf);
 
+static ssize_t ft5x06_ts_disable_keys_store(struct device *dev,
+struct device_attribute *attr, const char *buf, size_t count);
 
 
 static int ft5x06_i2c_read(struct i2c_client *client, char *writebuf,
@@ -274,6 +278,10 @@ static irqreturn_t ft5x06_ts_interrupt(int irq, void *dev_id)
 			break;
 
 		if (y == 2000) {
+
+                if (data->disable_keys)
+                    break;
+
 			y = 1344;
 
 			switch (x) {
@@ -1343,6 +1351,18 @@ void parse_cmldine_for_tp(void)
 			pr_debug("boarid not define!\n");
 }
 
+static DEVICE_ATTR(disable_keys, S_IWUSR | S_IRUSR, ft5x06_ts_disable_keys_show,
+		   ft5x06_ts_disable_keys_store);
+
+static struct attribute *ft5x06_ts_attrs[] = {
+    &dev_attr_disable_keys.attr,
+	NULL
+};
+
+static const struct attribute_group ft5x06_ts_attr_group = {
+	.attrs = ft5x06_ts_attrs,
+};
+
 
 static int ft5x06_ts_probe(struct i2c_client *client,
 						   const struct i2c_device_id *id)
@@ -1611,6 +1631,13 @@ static int ft5x06_ts_probe(struct i2c_client *client,
 		CTP_DEBUG("tp battery supply not found\n");
 #endif
 
+        err = sysfs_create_group(&client->dev.kobj, &ft5x06_ts_attr_group);
+	if (err) {
+		dev_err(&client->dev, "Failure %d creating sysfs group\n",
+			err);
+		goto free_reset_gpio;
+    }
+
 	enable_irq(data->client->irq);
 
 	return 0;
@@ -1685,9 +1712,34 @@ static int ft5x06_ts_remove(struct i2c_client *client)
 	else
 		ft5x06_power_init(data, false);
 
+        sysfs_remove_group(&client->dev.kobj, &ft5x06_ts_attr_group);
+
 	input_unregister_device(data->input_dev);
 
 	return 0;
+}
+
+static ssize_t ft5x06_ts_disable_keys_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct ft5x06_ts_data *data = dev_get_drvdata(dev);
+	const char c = data->disable_keys ? '1' : '0';
+	return sprintf(buf, "%c\n", c);
+}
+
+static ssize_t ft5x06_ts_disable_keys_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct ft5x06_ts_data *data = dev_get_drvdata(dev);
+	int i;
+
+	if (sscanf(buf, "%u", &i) == 1 && i < 2) {
+		data->disable_keys = (i == 1);
+		return count;
+	} else {
+		dev_dbg(dev, "disable_keys write error\n");
+		return -EINVAL;
+	}
 }
 
 static const struct i2c_device_id ft5x06_ts_id[] = {
