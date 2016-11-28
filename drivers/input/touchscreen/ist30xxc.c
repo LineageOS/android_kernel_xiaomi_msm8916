@@ -122,6 +122,13 @@ void tsp_printk(int level, const char *fmt, ...)
 	va_end(args);
 }
 
+
+static ssize_t ist30xx_disable_keys_show(struct device *dev,
+	struct device_attribute *attr, char *buf);
+
+static ssize_t ist30xx_disable_keys_store(struct device *dev,
+struct device_attribute *attr, const char *buf, size_t count);
+
 long get_milli_second(void)
 {
 	ktime_get_ts(&t_current);
@@ -753,7 +760,7 @@ static void report_input_data(struct ist30xx_data *data, int finger_counts,
 				input_report_abs(data->input_dev, ABS_MT_TOUCH_MAJOR, fingers[idx].bit_field.w);
 				idx++;
 			}
-			if (key_press == true) {
+			if ( (key_press == true) && (data->disable_keys == false) ) {
 				tsp_info("key press ( %d, %d)\n", fhd_key_dim_x[id + 1], FHD_KEY_Y);
 				input_mt_slot(data->input_dev, 0);
 				input_mt_report_slot_state(data->input_dev, MT_TOOL_FINGER, true);
@@ -1527,6 +1534,19 @@ static int ist30xx_ts_pinctrl_select(struct ist30xx_data *ist30xx_data, bool on)
 	return 0;
 }
 
+
+static DEVICE_ATTR(disable_keys, S_IWUSR | S_IRUSR, ist30xx_disable_keys_show,
+		   ist30xx_disable_keys_store);
+
+static struct attribute *ist30xx_attrs[] = {
+    &dev_attr_disable_keys.attr,
+	NULL
+};
+
+static const struct attribute_group ist30xx_attr_group = {
+	.attrs = ist30xx_attrs,
+};
+
 static int ist30xx_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
 {
@@ -1790,6 +1810,14 @@ static int ist30xx_probe(struct i2c_client *client,
 	/* release Firmware hold mode(forced active mode) */
 	ist30xx_write_cmd(data, IST30XX_HIB_CMD, (eHCOM_FW_HOLD << 16) | (0 & 0xFFFF));
 
+    err = sysfs_create_group(&client->dev.kobj, &ist30xx_attr_group);
+	if (err) {
+		dev_err(&client->dev, "Failure %d creating sysfs group\n",
+			err);
+		goto err_sysfs;
+    }
+
+
 	data->initialized = true;
 
 	tsp_info("### IMAGIS probe success ###\n");
@@ -1839,6 +1867,7 @@ static int ist30xx_remove(struct i2c_client *client)
 	unregister_early_suspend(&data->early_suspend);
 #endif
 
+        sysfs_remove_group(&client->dev.kobj, &ist30xx_attr_group);
 	ist30xx_disable_irq(data);
 	free_irq(client->irq, data);
 	ist30xx_power_off(data);
@@ -1862,6 +1891,29 @@ static void ist30xx_shutdown(struct i2c_client *client)
 	ist30xx_internal_suspend(data);
 	clear_input_data(data);
 	mutex_unlock(&ist30xx_mutex);
+}
+
+static ssize_t ist30xx_disable_keys_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct ist30xx_data *data = dev_get_drvdata(dev);
+	char c = data->disable_keys ? '1' : '0';
+	return sprintf(buf, "%c\n", c);
+}
+
+static ssize_t ist30xx_disable_keys_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct ist30xx_data *data = dev_get_drvdata(dev);
+	int i;
+
+	if (sscanf(buf, "%u", &i) == 1 && i < 2) {
+		data->disable_keys = (i == 1);
+		return count;
+	} else {
+		dev_dbg(dev, "disable_keys write error\n");
+		return -EINVAL;
+	}
 }
 
 static struct i2c_device_id ist30xx_idtable[] = {
