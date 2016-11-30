@@ -287,6 +287,21 @@ int power_supply_get_battery_charge_state(struct power_supply *psy)
 
 EXPORT_SYMBOL(power_supply_get_battery_charge_state);
 
+/**
+ * power_supply_set_dp_dm -
+ * @psy:	the power supply to control
+ * @value:	value to be passed to the power_supply
+ */
+int power_supply_set_dp_dm(struct power_supply *psy, int value)
+{
+	const union power_supply_propval ret = {value, };
+
+	if (psy->set_property)
+		return psy->set_property(psy, POWER_SUPPLY_PROP_DP_DM,
+				&ret);
+	return -ENXIO;
+}
+EXPORT_SYMBOL(power_supply_set_dp_dm);
 
 static int __power_supply_changed_work(struct device *dev, void *data)
 {
