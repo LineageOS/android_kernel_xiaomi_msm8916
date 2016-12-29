@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5a202591_d8d9f184",
+        "filename": "arch/arm64/configs/lineage_ido_defconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 36,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2016-12-29T15:50:42Z",
+      "side": 1,
+      "message": "Don\u0027t you wanna change this?",
+      "range": {
+        "startLine": 36,
+        "startChar": 22,
+        "endLine": 36,
+        "endChar": 33
+      },
+      "revId": "2f21a5ffbe490cbf8c399243b70c18e5eade74b9",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
